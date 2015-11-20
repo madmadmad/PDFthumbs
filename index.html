@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  	
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible">	
+	</head>
+
+	<body>
+
+		<!-- the target element -->
+		<div id="foobar" style="width: 300px;"></div>
+
+	</body>
+
+</html>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<script src="/js/pdf.js"></script>
+
+<script>
+		
+	$(document).ready(function() {
+
+		// main function
+		// where 'doc' is the path to the pdf
+		// and 'id' is a unique identifier for both the filename and the target html element
+		function thumbnail(doc,id){
+				 						
+			// source
+			// https://github.com/mozilla/pdf.js
+			PDFJS.workerSrc="/js/pdf.worker.js";
+				 
+			PDFJS.getDocument(doc).then(function(pdf){
+					  
+				pdf.getPage(1).then(function(page) {  // 1 is the page number you want to render
+					  	
+					var viewport = page.getViewport(0.5);
+					var canvas = document.createElement('canvas');
+					var ctx = canvas.getContext('2d');
+					canvas.height = viewport.height;
+					canvas.width = viewport.width;
+
+					var renderContext = {
+						  canvasContext: ctx,
+						  viewport: viewport
+					};
+
+					page.render(renderContext).then(function(){
+						//set to draw behind current content
+						ctx.globalCompositeOperation = "destination-over";
+
+						//set background color
+						ctx.fillStyle = "#ffffff";
+
+						//draw background / rect on entire canvas
+						ctx.fillRect(0,0,canvas.width,canvas.height);
+						var imageData = canvas.toDataURL("image/png");
+						
+						// put it on the page
+						// depending on your use case
+						// you could use 'append' instead of 'html'
+						$('#'+id).html('<a href="'+doc+'" target="_blank"><img class="img-responsive" src="'+imageData+'"/></a>');
+
+						// you could stop here if you always want to render virtually
+						// save it to disk? yes, please.
+						
+						var data = atob( imageData.replace(/^.*?base64,/, '') );
+						
+						$.ajax({
+							  method: "POST",
+							  url: "/pdf_thumbs/saver.php",
+							  data: {
+									name: 'thumb_'+id,
+									data: imageData
+								}
+							})
+						  .done(function( ) {
+							 	// data saved;
+						  });
+						
+					});
+				
+				});
+			
+			});
+			
+		};
+					
+			
+		// make sure 'pdf_thumbs' directory is writeable and you have permissions
+		// usage tip: put this in a loop that corresponds to a loop that places 
+		// matching target elements in the html :)
+		// (and replace all instance of 'foobar' here with dynamic id's)	
+		$.ajax({
+				 url:'/pdf_thumbs/thumb_foobar.png',
+				 type:'HEAD',
+				 error: function()
+				 {
+					  // thumb does not exist. make one, display it, then save it.
+					  // note: you WILL get an error in the console when this happens
+					  thumbnail("/test.pdf","foobar");
+				 },
+				 success: function()
+				 {
+					  //thumb exists, use it.
+						$('#foobar').html('<a href="/test.pdf" target="_blank"><img src="/pdf_thumbs/thumb_foobar.png"/></a>');
+				 }
+			});
+						
+	});
+	
+</script>
